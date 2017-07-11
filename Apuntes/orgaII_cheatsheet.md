@@ -17,6 +17,105 @@
 + [0xFF] 8 bits, 1 byte
 + [direcc] [reg+reg*scalar+desp], scalar=1,2,4,8 desp=imm32bits
 
+## Definiendo en memoria
+```
+movdqu xmm1, [mem]; levanta desalineado
+
+movdqa xmm2, [mem]; operand must be aligned on a 16-byte boundary or a general-protection exception (#GP) will be generated
+DEST[127:0] ← SRC[127:0]
+
+etiqueta: DD 0, 0xFFFFFFFF, 0, 0xFFFFFFFF
+movdqu , [etiqueta] ;  = [0xFFFFFFFF,0,0xFFFFFFFF,0]
+
+enteros_byte: DB 0x00, 0xFF, 0x01, 0xFF, 0x02, 0xFF, 0x03, 0xFF, 0x00, 0xFF, 0x01, 0xFF, 0x02, 0xFF, 0x03, 0xFF ; x 16
+enteros_uint16: DW	0, -208, -100	, 298,	0, 409	, 0		, 298 ; enteros de 16 bits x 8
+doublewords: DD 128,  0,  0,  0 ; puntos flotante single pre x 4
+
+Stack (ponele que alineado a 64):
+p1 - p0 --> Dirección mas ba|a
+p3 - p2 --> Dirección mas alta
+
+movdqu xmm0, [rdi]; xmm0 = [P3 | P2 | P1 | P0]
+```
+## EMPAQUETADO
+```
+
+Empaquetado: pack + ss/us + wb/dw
+Empaquetado: pack + ss/us + wb/dw
+
+packsswb (saturacion con signo)
+packuswb (saturacion sin signo)
+
+```
+
+## DESEMPAQUETADO
+```
+Desempaquetado: punpck + l/h + bw/wd/dq/qdq
+
+```
+
+## Operaciones aritmeticas SIMD
+```
+
+pavgb (promedio)
+
+sqrtps (raiz cuadrada)
+
+Flotante:
+
+  Multiplicacion:
+
+  Empaquetado MULPS / MULPD
+  MULPS xmm1, xmm2/m128
+  Multiply packed single-precision floating-point values in xmm2/mem by xmm1.
+
+  Desempaquetado MULSS/ MULSD
+  MULSS xmm1, xmm2/m32 (UN SOLO VALOR)
+  Multiply the low single-precision floating-point value in xmm2/mem by the low single-precision floating-point value in xmm1.
+
+  Division:
+  DIVPS xmm1, xmm2/m128
+
+  Suma:
+  addps
+  subps
+
+Entero:
+  Suma:
+  paddb
+  paddw
+  paddd
+  paddq
+
+  resta:
+  psubb
+  psubw
+  psubd
+
+
+Mayor:
+xmm1 = 1000 / -456 / -15 / 0 / 100 / 234 / -890 / 1
+xmm7 = 0.
+pcmpgtw xmm7, xmm1 ; xmm7 > xmm1 ?
+xmm7 = 0x0000 , 0xFFFF , 0xFFFF , 0x0000 , 0x0000 , 0x0000 , 0xFFFF , 0x0000
+
+Extender el signo:
+Aprovechando que los numeros negativos se extendienden con 1s, y
+los positivos con 0s. Por e|emplo:
+-5 = 1011 se extiende a 1111 1011
+5 = 0101 se extiende a 0000 0101
+
+pcmpgtw xmm7, xmm1 ; xmm7 > xmm1 ?
+movdqu xmm2, xmm1 ; copio xmm1
+punpckhwd xmm1, xmm7 ; xmm1 = 1000 / -456 / -15 / 0
+punpcklwd xmm2, xmm7 ; xmm2 = 100 / 234 / -890 / 1
+
+
+Generar mascaras:
+Muy utiles para ltrar, enmascarar, o lo que necesitemos hacer solo
+a algunos elementos del registro. Utilizamos ademas instrucciones
+como PAND, POR, PXOR, etc.
+```
 
 ## Operaciones logicas SIMD
 ```
@@ -26,6 +125,7 @@ por xmm1, xmm2/m128;packed or
 pand xmm1, xmm2/m128;packed and
 Destination = Destination & Source;
 ```
+
 
 ## Conversiones
 
@@ -222,8 +322,8 @@ ELSE
 FI;
 
 //0 a 3 bits, si esta en 0 pone en 0 ese dw
-// Ejemplo de imm0 :
- 0xF(deja bits ok como estaban) or
+// E|emplo de imm0 :
+ 0xF(de|a bits ok como estaban) or
 (0x2 << 4) or lo pongo en la 3era posicion
 (0x3 << 6) tomo los 32 mas significativos de src
 
@@ -254,10 +354,10 @@ FI
 ```
 SHUFPS xmm1, xmm3/m128, imm8
 
-Basicamente en un registro de 128 pone la parte baja 2 de 32 del original
+Basicamente en un registro de 128 pone la parte ba|a 2 de 32 del original
 y en la parte alta 2 de 32 del xmm3
 
-y la parte alta le pone los altos o bajos del SRC
+y la parte alta le pone los altos o ba|os del SRC
 
 DEST[31:0] Select4(DEST[127:0], imm8[1:0]);
 DEST[63:32] Select4(DEST[127:0], imm8[3:2]);
@@ -330,9 +430,9 @@ switch(Select[6..7]) {
 #### Shuffle packed single DP values
 ```
 SHUFPD xmm1, xmm2/m128, imm8
-Basicamente en un registro de 128 pone la parte baja (64) con los
-valores del destino altos o bajos
-y la parte alta le pone los altos o bajos del SRC
+Basicamente en un registro de 128 pone la parte ba|a (64) con los
+valores del destino altos o ba|os
+y la parte alta le pone los altos o ba|os del SRC
 
 
 if(Select[0] == 0)
@@ -364,7 +464,7 @@ for i = 0 ; i < 15 ; i++ {
 ```
 
 
-#### Shuffle de a words (2 bytes - 16 bits - 4 posibilidades de posicion parte baja)
+#### Shuffle de a words (2 bytes - 16 bits - 4 posibilidades de posicion parte ba|a)
 
 ```
 pshufw mm1, mm2/m64, imm8
@@ -420,4 +520,79 @@ DEST[63:32]  (SRC >> (ORDER[3:2] * 32))[31:0];
 DEST[95:64]  (SRC >> (ORDER[5:4] * 32))[31:0];
 DEST[127:96]  (SRC >> (ORDER[7:6] * 32))[31:0];
 DEST[VLMAX-1:128] (Unmodified)
+```
+
+## Super ejemplo aritmetico SIMD.
+```
+// Util con matriz
+mov rdi, r13 ; rdi = n
+shl rdi, 2 ; rdi = n * 4
+call malloc ; pido memoria (n*4)
+
+
+;Preparamos los registros para el ciclo y buscamos dentro del vector el
+;maximo y el mnimo
+
+mov rcx, r13 ; rcx = n
+shr rcx, 2 ; rcx = n / 4 ; esto porque va a iterar de a 4 elementos.
+
+mov rdi, r12 ; rdi = vector
+movups xmm0, [rdi] ; xmm0 = valores iniciales para mnimos
+movups xmm1, [rdi] ; xmm1 = valores iniciales para maximos
+
+.ciclo:
+  movups xmm2, [rdi] ; ba|o 4 valores
+  minps xmm0, xmm2 ; xmm0 = mnimos actualizados
+  maxps xmm1, xmm2 ; xmm1 = maximos actualizados
+  add rdi, 16 ; avanzo el puntero
+  loop .ciclo
+;Consigo el mnimo de los mnimos en xmm0 y lo \replico" en cada
+;posicion de xmm0:
+
+movdqu xmm2, xmm0 ; xmm2 = xmm0
+psrldq xmm2, 4 ; xmm2 = 0 |xmm03 |xmm02 |xmm01
+minps xmm0, xmm2 ; xmm0 = ? | min(xmm02;xmm03) | ? | min(xmm00;xmm01)
+movdqu xmm2, xmm0
+psrldq xmm2, 8 ; xmm2 = 0 | 0 |?| min(xmm02;xmm03)
+minps xmm2, xmm0 ; xmm2 = ? |?|?|min(xmm00;xmm01;xmm02;xmm03)
+xorps xmm0, xmm0 ; xmm0 = 0 | 0 | 0 | 0
+addss xmm0, xmm2 ; xmm0 = 0 | 0 | 0 | min
+pslldq xmm0, 4 ; xmm0 = 0 | 0 | min | 0
+addss xmm0, xmm2 ; xmm0 = 0 | 0 | min | min
+movaps xmm3, xmm0 ; xmm3 = 0 | 0 | min | min
+pslldq xmm3, 8 ; xmm3 = min | min | 0 | 0
+addps xmm0, xmm3 ; xmm0 = min | min | min | min
+
+movdqu xmm2, xmm1 ; xmm2 = xmm1
+psrldq xmm2, 4 ; xmm2 = 0 |xmm13 |xmm12 |xmm11
+maxps xmm1, xmm2 ; xmm1 = ? | max(xmm12;xmm13) | ? | max(xmm10;xmm11)
+movdqu xmm2, xmm1
+psrldq xmm2, 8 ; xmm2 = 0 | 0 |?| max(xmm12;xmm13)
+maxps xmm2, xmm1 ; xmm2 = ?|?|?|max(xmm10;xmm11;xmm12;xmm13)
+xorps xmm1, xmm1 ; xmm1 = 0 | 0 | 0 | 0
+addss xmm1, xmm2 ; xmm1 = 0 | 0 | 0 | max
+pslldq xmm1, 4 ; xmm1 = 0 | 0 | max | 0
+addss xmm1, xmm2 ; xmm1 = 0 | 0 | max | max
+movaps xmm3, xmm1 ; xmm3 = 0 | 0 | max | max
+pslldq xmm3, 8 ; xmm3 = max | max | 0 | 0
+addps xmm1, xmm3 ; xmm1 = max | max | max | max
+subps xmm1, xmm0 ; xmm1 = (max - min) | (max - min) | (max - min) | (max - min)
+
+mov rcx, r13 ; rcx = n
+shr rcx, 2 ; rcx = n / 4
+mov rdi, r12 ; rdi = v
+mov rsi, rax ; rsi = vector nuevo
+
+.ciclo2:
+  movups xmm2, [rdi] ; xmm2 = Xi+3 j Xi+2 j Xi+1 j Xi
+  subps xmm2, xmm0 ; xmm2 = Xi+3 - min ..... Xi - min
+  divps xmm2, xmm1 ; xmm2 = Xi+3 - min/max-min ..... Xi - min / max-min
+  movups [rsi], xmm2 ; escribo los valores normalizados al nuevo vector
+  add rdi, 16 ; avanzo punteros
+  add rsi, 16
+  loop .ciclo2
+pop r13
+pop r12
+pop rbp
+ret
 ```
